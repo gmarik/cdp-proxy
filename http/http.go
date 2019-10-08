@@ -87,18 +87,16 @@ func (w *responseWriter) Reset(hw headerWriter, ww io.Writer) {
 
 func (w *responseWriter) response(r *http.Request) *http.Response {
 	return &http.Response{
+		// NOTE: Request is set only for client requests
+		// but it's useful in this case
 		Request:       r,
 		StatusCode:    w.status,
 		Status:        http.StatusText(w.status),
 		ContentLength: w.contentLength,
-		// TODO:
-		Proto:      r.Proto,
-		ProtoMajor: r.ProtoMajor,
-		ProtoMinor: r.ProtoMinor,
-		// TODO: +1.13
-		Header: w.headerWriter.Header().Clone(),
-		// TODO
-		// BODY
+		Proto:         r.Proto,
+		ProtoMajor:    r.ProtoMajor,
+		ProtoMinor:    r.ProtoMinor,
+		Header:        cloneHeader(w.headerWriter.Header()),
 	}
 }
 
@@ -119,4 +117,26 @@ func copySlice(p []byte) []byte {
 	dup := make([]byte, len(p))
 	copy(dup, p)
 	return dup
+}
+
+// https://github.com/golang/go/issues/29915
+// backport from go1.13 https://github.com/golang/go/blob/ed7e43085ef2e2c6a1d62785b2d2b343a80039bc/src/net/http/header.go#L81
+func cloneHeader(h http.Header) http.Header {
+	if h == nil {
+		return nil
+	}
+
+	// Find total number of values.
+	nv := 0
+	for _, vv := range h {
+		nv += len(vv)
+	}
+	sv := make([]string, nv) // shared backing array for headers' values
+	h2 := make(http.Header, len(h))
+	for k, vv := range h {
+		n := copy(sv, vv)
+		h2[k] = sv[:n:n]
+		sv = sv[n:]
+	}
+	return h2
 }
