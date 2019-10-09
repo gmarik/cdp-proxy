@@ -1,3 +1,5 @@
+![test:status](https://github.com/gmarik/cdp-proxy/workflows/Test/badge.svg)
+
 ## About
 
 [cdp-proxy] is a mitm style HTTP proxy and middleware leveraging Chrome DevTools for UI, written in [Go].
