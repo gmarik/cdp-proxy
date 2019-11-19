@@ -1,7 +1,8 @@
 package http
 
 import (
-	"io"
+	"bufio"
+	"net"
 	"net/http"
 )
 
@@ -27,64 +28,29 @@ func Handler(trace tracer, next http.Handler) http.Handler {
 
 		var (
 			rw = responseWriter{
-				headerWriter: w,
-				Writer: writerFunc(func(p []byte) (int, error) {
-					trace.DataReceived(reqID, copySlice(p))
-					return w.Write(p)
-				}),
+				ResponseWriter: w,
+				tracer:         trace,
+				reqID:          reqID,
 			}
-
-			W = func() http.ResponseWriter {
-				h, ok := w.(http.Hijacker)
-				if !ok {
-					return &rw
-				}
-
-				return struct {
-					http.Flusher
-					http.Hijacker
-					http.ResponseWriter
-				}{
-					Flusher:        w.(http.Flusher),
-					Hijacker:       h,
-					ResponseWriter: &rw,
-				}
-			}()
 		)
 
-		next.ServeHTTP(W, r)
+		next.ServeHTTP(&rw, r)
 
 		re := rw.response(r)
+
 		trace.ResponseReceived(reqID, re)
 		trace.LoadingFinished(reqID, re)
 	})
 }
 
-type writerFunc func(p []byte) (int, error)
-
-func (wf writerFunc) Write(p []byte) (int, error) {
-	return wf(p)
-}
-
-type headerWriter interface {
-	WriteHeader(int)
-	Header() http.Header
-}
-
 type responseWriter struct {
-	headerWriter
-	io.Writer
+	http.ResponseWriter
 
 	status        int
 	contentLength int64
-}
 
-func (w *responseWriter) Reset(hw headerWriter, ww io.Writer) {
-	w.headerWriter = hw
-	w.Writer = w
-
-	w.status = 0
-	w.contentLength = 0
+	reqID  string
+	tracer tracer
 }
 
 func (w *responseWriter) response(r *http.Request) *http.Response {
@@ -98,7 +64,7 @@ func (w *responseWriter) response(r *http.Request) *http.Response {
 		Proto:         r.Proto,
 		ProtoMajor:    r.ProtoMajor,
 		ProtoMinor:    r.ProtoMinor,
-		Header:        cloneHeader(w.headerWriter.Header()),
+		Header:        cloneHeader(w.ResponseWriter.Header()),
 	}
 }
 
@@ -106,17 +72,63 @@ func (w *responseWriter) Write(p []byte) (n int, err error) {
 	if w.status == 0 {
 		w.status = http.StatusOK
 	}
-
 	w.contentLength += int64(len(p))
-	return w.Writer.Write(p)
+	w.tracer.DataReceived(w.reqID, copySlice(p))
+	return w.ResponseWriter.Write(p)
 }
 
 func (w *responseWriter) WriteHeader(code int) {
-	w.headerWriter.WriteHeader(code)
+	w.ResponseWriter.WriteHeader(code)
 	if w.status > 0 {
 		return
 	}
+	w.tracer.DataReceived(w.reqID, nil)
 	w.status = code
+}
+
+type conn struct {
+	net.Conn
+	tracer tracer
+	reqID  string
+}
+
+func (c *conn) Write(p []byte) (int, error) {
+	c.tracer.DataReceived(c.reqID, copySlice(p))
+	return c.Conn.Write(p)
+}
+
+func (c *conn) CloseRead() error {
+	if cr, ok := c.Conn.(interface{ CloseRead() error }); ok {
+		return cr.CloseRead()
+	}
+	return nil
+}
+
+func (c *conn) CloseWrite() error {
+	if w, ok := c.Conn.(interface{ CloseWrite() error }); ok {
+		return w.CloseWrite()
+	}
+	return nil
+}
+func (w *responseWriter) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+		return
+	}
+
+	panic("http.Flusher: unavailable")
+}
+
+func (w *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if h, ok := w.ResponseWriter.(http.Hijacker); ok {
+		c, buf, err := h.Hijack()
+		if err != nil {
+			return nil, nil, err
+		}
+		return &conn{Conn: c, tracer: w.tracer, reqID: w.reqID}, buf, err
+	}
+
+	panic("http.Hijacker: unavailable")
 }
 
 func copySlice(p []byte) []byte {
