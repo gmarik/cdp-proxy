@@ -43,7 +43,7 @@ func (eb *eventBus) emit(e event) error {
 	select {
 	case eb.ch <- e:
 	default:
-		log.Printf("SKIP: event=%v", e)
+		log.Printf("SKIP: event.reqID=%s event.Method=%q\r\n", e.reqID, e.Method)
 	}
 	return nil
 }
