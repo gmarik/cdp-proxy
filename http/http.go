@@ -103,6 +103,10 @@ func (w *responseWriter) response(r *http.Request) *http.Response {
 }
 
 func (w *responseWriter) Write(p []byte) (n int, err error) {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+
 	w.contentLength += int64(len(p))
 	return w.Writer.Write(p)
 }
