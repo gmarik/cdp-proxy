@@ -106,7 +106,13 @@ func newTunnel(u *url.URL) http.Handler {
 			sconn = conn
 		}
 
-		var src, dst = sconn.(*net.TCPConn), dconn.(*net.TCPConn)
+		type ReadWriteCloser interface {
+			net.Conn
+			CloseRead() error
+			CloseWrite() error
+		}
+
+		var src, dst = sconn.(ReadWriteCloser), dconn.(ReadWriteCloser)
 		// TODO:
 		var done = make(chan struct{})
 		go func() {
