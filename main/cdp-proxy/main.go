@@ -87,17 +87,23 @@ func newTunnel(u *url.URL) http.Handler {
 		}
 
 		w.WriteHeader(http.StatusOK)
-
-		h, ok := w.(http.Hijacker)
-		if !ok {
-			httpErr(http.StatusInternalServerError, fmt.Errorf("http.Hijacker: unavailable"))
-			return
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		} else {
+			log.Println("http.Flusher: unavailable")
 		}
 
-		sconn, _, err := h.Hijack()
-		if err != nil {
-			httpErr(http.StatusServiceUnavailable, err)
+		var sconn net.Conn
+		if h, ok := w.(http.Hijacker); !ok {
+			httpErr(http.StatusInternalServerError, fmt.Errorf("http.Hijacker: unavailable"))
 			return
+		} else {
+			conn, _, err := h.Hijack()
+			if err != nil {
+				httpErr(http.StatusServiceUnavailable, err)
+				return
+			}
+			sconn = conn
 		}
 
 		var src, dst = sconn.(*net.TCPConn), dconn.(*net.TCPConn)

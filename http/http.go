@@ -41,9 +41,11 @@ func Handler(trace tracer, next http.Handler) http.Handler {
 				}
 
 				return struct {
+					http.Flusher
 					http.Hijacker
 					http.ResponseWriter
 				}{
+					Flusher:        w.(http.Flusher),
 					Hijacker:       h,
 					ResponseWriter: &rw,
 				}
