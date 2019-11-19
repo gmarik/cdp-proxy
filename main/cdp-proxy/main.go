@@ -107,18 +107,21 @@ func newTunnel(u *url.URL) http.Handler {
 		}
 
 		var src, dst = sconn.(*net.TCPConn), dconn.(*net.TCPConn)
-		defer dst.CloseWrite()
 		// TODO:
 		var done = make(chan struct{})
 		go func() {
-			defer func() { done <- struct{}{} }()
 			n, err := io.Copy(src, dst)
 			log.Printf("src<-dst: n=%d error=%v", n, err)
+			dst.CloseRead()
+			src.CloseWrite()
+			done <- struct{}{}
 		}()
 		go func() {
-			defer func() { done <- struct{}{} }()
 			n, err := io.Copy(dst, src)
 			log.Printf("src->dst: n=%d error=%v", n, err)
+			dst.CloseWrite()
+			src.CloseRead()
+			done <- struct{}{}
 		}()
 		<-done
 		<-done
