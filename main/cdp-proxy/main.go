@@ -32,16 +32,20 @@ func main() {
 	var eb = httpcdp.NewEventBus()
 
 	go func() {
-		log.Printf("http.devtools: ListenAndServe.address=%q", HTTP_CDP_Addr)
+		px := "devtools: http.ListenAndServe:"
+		defer log.Printf("%s done", px)
+		log.Printf("%s address=%q", px, HTTP_CDP_Addr)
 		if err := http.ListenAndServe(HTTP_CDP_Addr, httpcdp.Devtools(eb)); err != nil {
-			log.Fatalf("http.devtools: ListenAndServe.error=%q", err)
+			log.Fatalf("%s error=%q", px, err)
 		}
 	}()
 
 	go func() {
-		log.Printf("http.proxy: ListenAndServe.address=%q", HTTP_Proxy_Addr)
+		px := "proxy: http.ListenAndServe:"
+		defer log.Printf("%s done", px)
+		log.Printf("%s address=%q", px, HTTP_Proxy_Addr)
 		if err := http.ListenAndServe(HTTP_Proxy_Addr, httpx.Handler(eb, proxy)); err != nil {
-			log.Fatalf("http.proxy: ListenAndServe.error=%q", err)
+			log.Fatalf("%s error=%q", px, err)
 		}
 	}()
 
