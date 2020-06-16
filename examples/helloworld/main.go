@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -15,21 +16,26 @@ import (
 )
 
 var (
-	HTTP_CDP_Addr    = "localhost:9229"
-	HTTP_Server_Addr = "localhost:8081"
+	HTTP_CDP_HostPort   = "localhost:9229"
+	HTTP_Proxy_HostPort = "localhost:8081"
 )
 
 func main() {
-	flag.StringVar(&HTTP_CDP_Addr, "http-cdp-addr", HTTP_CDP_Addr, "chrome devtools protocol listener address")
-	flag.StringVar(&HTTP_Server_Addr, "http-proxy-addr", HTTP_Server_Addr, "HTTP server listener address")
+	flag.StringVar(&HTTP_CDP_HostPort, "http-cdp-hostport", HTTP_CDP_HostPort, "chrome devtools protocol listener address(host:port)")
+	flag.StringVar(&HTTP_Proxy_HostPort, "http-proxy-hostport", HTTP_Proxy_HostPort, "HTTP proxy listener address(host:port)")
 	flag.Parse()
 
 	var eb = httpcdp.NewEventBus()
+	var ctx = context.Background()
 
 	go func() {
-		log.Printf("http.devtools: ListenAndServe.address=%q", HTTP_CDP_Addr)
-		if err := http.ListenAndServe(HTTP_CDP_Addr, httpcdp.Devtools(eb)); err != nil {
-			log.Fatalf("http.devtools: ListenAndServe.error=%q", err)
+		log.Printf("devtools: http.ListenAndServe: hostport=%q", HTTP_CDP_HostPort)
+		s := httpcdp.Server{
+			Eventbus: eb,
+			HostPort: HTTP_CDP_HostPort,
+		}
+		if err := s.ListenAndServe(ctx); err != nil {
+			log.Fatalf("devtools: http.ListenAndServe: error=%q", err)
 		}
 	}()
 
@@ -39,9 +45,9 @@ func main() {
 			fmt.Fprintf(w, "hello world")
 		})
 
-		log.Printf("http.proxy: ListenAndServe.address=%q", HTTP_Server_Addr)
-		if err := http.ListenAndServe(HTTP_Server_Addr, cdphttp.Handler(eb, handler)); err != nil {
-			log.Fatalf("http.proxy: ListenAndServe.error=%q", err)
+		log.Printf("proxy: http.ListenAndServe: hostport=%q", HTTP_Proxy_HostPort)
+		if err := http.ListenAndServe(HTTP_Proxy_HostPort, cdphttp.Handler(eb, handler)); err != nil {
+			log.Fatalf("proxy: http.ListenAndServe: error=%q", err)
 		}
 	}()
 
