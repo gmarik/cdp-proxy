@@ -188,7 +188,7 @@ jobs:
       env:
         VERSION: ${{ steps.get_version.outputs.VERSION }}
       run: |
-        mv ./cdp-proxy-${{ matrix.OS }}-${{ matrix.ARCH }}-${{github.sha}} cdp-proxy
+        mv ./cdp-proxy-${{ matrix.OS }}-${{ matrix.ARCH }}-${{github.sha}}/* ./
         test -f ./cdp-proxy && chmod +x ./cdp-proxy #only on linux & darwin needed
         zip -j cdp-proxy-$VERSION-${{ matrix.OS }}-${{ matrix.ARCH }}.zip ./*
     # Download the previously uploaded artifact which contains the release URL
