@@ -3,8 +3,9 @@ package httpcdp
 import (
 	"context"
 	"fmt"
-	"log"
+	"io"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/chromedp/cdproto/cdp"
@@ -19,31 +20,91 @@ type event struct {
 	reqID string `json:"-"`
 }
 
-type eventBus struct {
-	ch chan event
+type eventBusReader struct {
+	ch     chan event
+	closer func() error
+	err    error
 }
 
-func NewEventBus() *eventBus {
-	return &eventBus{ch: make(chan event, 100)}
-}
-
-func (eb *eventBus) ReadEvent(ctx context.Context) event {
+func (r *eventBusReader) ReadEvent(ctx context.Context, e *event) error {
+	if r.err != nil {
+		return r.err
+	}
 	select {
 	case <-ctx.Done():
-		return event{}
-	case e := <-eb.ch:
-		return e
+		return ctx.Err()
+	case ee := <-r.ch:
+		if e == nil {
+			panic("nil destination")
+		}
+		*e = ee
+		return nil
 	}
 }
 
+func (r *eventBusReader) Close() error {
+	if r.err != nil {
+		r.err = io.EOF
+	}
+	return r.closer()
+}
+
+type eventBus struct {
+	ch chan event
+
+	m struct {
+		sync.RWMutex
+		m map[*eventBusReader]struct{}
+	}
+}
+
+func NewEventBus() *eventBus {
+	eb := &eventBus{
+		ch: make(chan event, 100),
+	}
+	eb.m.m = make(map[*eventBusReader]struct{})
+	return eb
+}
+
+func (eb *eventBus) addReader(r *eventBusReader) {
+	eb.m.Lock()
+	eb.m.m[r] = struct{}{}
+	eb.m.Unlock()
+}
+
+func (eb *eventBus) rmReader(r *eventBusReader) {
+	eb.m.Lock()
+	delete(eb.m.m, r)
+	eb.m.Unlock()
+}
+
+func (eb *eventBus) NewReader() *eventBusReader {
+	ebr := new(eventBusReader)
+	*ebr = eventBusReader{
+		ch: make(chan event),
+		closer: func() error {
+			eb.rmReader(ebr)
+			return nil
+		},
+	}
+	eb.addReader(ebr)
+	return ebr
+}
+
 func (eb *eventBus) emit(e event) error {
-	// TODO:
-	// 1. skips events if no other goroutine is recv-ing concurrently
-	// 2. it load-balances between multiple UIs which is not what expected
-	select {
-	case eb.ch <- e:
-	default:
-		log.Printf("SKIP: event.reqID=%s event.Method=%q\r\n", e.reqID, e.Method)
+	eb.m.RLock()
+	defer eb.m.RUnlock()
+
+	const timeout = 500 * time.Millisecond
+	var timedOut = time.NewTimer(timeout)
+
+	for r := range eb.m.m {
+		timedOut.Reset(timeout)
+		select {
+		case r.ch <- e:
+		case <-timedOut.C:
+			r.Close()
+		}
 	}
 	return nil
 }
