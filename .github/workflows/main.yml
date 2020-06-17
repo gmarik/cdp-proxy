@@ -1,11 +1,15 @@
 name: Test
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [master]
+  pull_request:
+    types: [opened,reopened,synchronize]
 jobs:
   test:
     strategy:
       matrix:
-        go-version: [1.12.x, 1.13.x]
+        go-version: [1.13.x, 1.14.x, 1.15.x]
         platform: [ubuntu-latest, macos-latest] # TODO:, windows-latest]
     runs-on: ${{ matrix.platform }}
     steps:
