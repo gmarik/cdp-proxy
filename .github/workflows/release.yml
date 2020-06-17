@@ -99,7 +99,7 @@ jobs:
         GOOS: ${{matrix.GOOS}}
         GOARCH: ${{matrix.GOARCH}} 
 
-   - name: Prepare build artifacts for stashing
+    - name: Prepare build artifacts for stashing
       run: |
         mkdir release
         mv ./cdp-proxy ./release
