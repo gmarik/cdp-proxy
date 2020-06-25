@@ -27,13 +27,10 @@ func handleCDPEvent(ctx context.Context, conn *websocket.Conn, e event) error {
 			`{"frameTree": { "frame":{"id":1,"url":"http://cdp-proxy","mimeType":"other"},"childFrames":[],"resources":[]}}`,
 		)
 	case m == "Network.getResponseBody":
-		params, ok := e.Params.(map[string]interface{})
-		if !ok {
+		if id, ok := parseId(e); !ok {
 			return nil
-		}
-		e.reqID, ok = params["requestId"].(string)
-		if !ok {
-			return nil
+		} else {
+			e.reqID = id
 		}
 
 		if buf, ok := requestLog.Load(e.reqID); !ok {
@@ -86,4 +83,16 @@ func writeConn(conn *websocket.Conn, p []byte) (int, error) {
 
 func respond(conn *websocket.Conn, id int, p string) (int, error) {
 	return writeConn(conn, []byte(fmt.Sprintf(`{"id":%d,"result":%s}`, id, p)))
+}
+
+func parseId(e event) (id string, ok bool) {
+	params, ok := e.Params.(map[string]interface{})
+	if !ok {
+		return "", false
+	}
+	id, ok = params["requestId"].(string)
+	if !ok {
+		return "", false
+	}
+	return id, true
 }
