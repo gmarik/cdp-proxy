@@ -15,7 +15,7 @@ import (
 
 // https://medium.com/@paul_irish/debugging-node-js-nightlies-with-chrome-devtools-7c4a1b95ae27
 // conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf(`{"method": "Page.disable","params":{}}`)))
-func handleCDP(ctx context.Context, conn *websocket.Conn, e event) error {
+func handleCDPEvent(ctx context.Context, conn *websocket.Conn, e event) error {
 	switch m := e.Method; {
 	case m == "Page.canScreencast" ||
 		m == "Network.canEmulateNetworkConditions" ||

@@ -155,8 +155,8 @@ func (s *Server) handleConn(ctx context.Context, conn *websocket.Conn) error {
 					return
 				}
 				log.Printf("[CDP->] %+v\n", e)
-				if err := handleCDP(ctx, conn, e); err != nil {
-					errc <- fmt.Errorf("handleCDP: %w", err)
+				if err := handleCDPEvent(ctx, conn, e); err != nil {
+					errc <- fmt.Errorf("handleCDPEvent: %w", err)
 					return
 				}
 			}
