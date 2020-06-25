@@ -95,6 +95,8 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel_Fn := context.WithCancel(r.Context())
 		defer conn.Close()
 		defer cancel_Fn()
+		log.Printf("client: connected\n")
+		defer log.Printf("client: disconnected\n")
 
 		if err := s.handleConn(ctx, conn); err != nil {
 			log.Printf("handleConn: error=%q\n", err)
