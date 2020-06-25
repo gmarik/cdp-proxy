@@ -13,7 +13,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var store = newStore()
+var requestLog = newStore()
 
 var vlog = log.New(ioutil.Discard, "", log.Lshortfile)
 
@@ -127,7 +127,7 @@ func (s *Server) handleConn(ctx context.Context, conn *websocket.Conn) error {
 					}
 
 					var newBuf bytes.Buffer
-					buf, ok := store.LoadOrStore(e.reqID, &newBuf)
+					buf, ok := requestLog.LoadOrStore(e.reqID, &newBuf)
 
 					if _, err := buf.Write(data); err != nil {
 						log.Printf("buf.Write: error=%q", err)

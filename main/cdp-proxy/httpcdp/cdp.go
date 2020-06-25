@@ -36,7 +36,7 @@ func handleCDPEvent(ctx context.Context, conn *websocket.Conn, e event) error {
 			return nil
 		}
 
-		if buf, ok := store.Load(e.reqID); !ok {
+		if buf, ok := requestLog.Load(e.reqID); !ok {
 			respond(conn, e.ID, `{"body":"","base64Encoded":true}`)
 		} else {
 			result := map[string]interface{}{
