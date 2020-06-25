@@ -77,6 +77,8 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch u := r.URL; {
+	default:
+		http.NotFound(w, r)
 	case u.Path == "/json":
 		// https://chromedevtools.github.io/devtools-protocol/#get-json-or-jsonlist
 		s.metadata(w, r)
