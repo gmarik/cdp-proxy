@@ -107,7 +107,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleConn(ctx context.Context, conn *websocket.Conn) error {
 	// NOTE: make sure to not block the goroutines to be able to errc <- err
 	var errc = make(chan error, 2)
-	go func() {
+	reader := func() {
 		er := s.Eventbus.NewReader()
 		defer er.Close()
 		for {
@@ -143,9 +143,9 @@ func (s *Server) handleConn(ctx context.Context, conn *websocket.Conn) error {
 				}
 			}
 		}
-	}()
+	}
 
-	go func() {
+	writer := func() {
 		for {
 			select {
 			case <-ctx.Done():
@@ -163,7 +163,10 @@ func (s *Server) handleConn(ctx context.Context, conn *websocket.Conn) error {
 				}
 			}
 		}
-	}()
+	}
+
+	go reader()
+	go writer()
 
 	for {
 		select {
