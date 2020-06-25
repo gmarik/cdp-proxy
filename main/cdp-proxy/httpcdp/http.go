@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/textproto"
 	"strings"
 
 	"github.com/gorilla/websocket"
@@ -76,16 +77,30 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch u := r.URL; {
-	case u.Path == "/":
-		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprintf(w, `go to <b>chrome://devtools/bundled/inspector.html?experiments=true&ws=localhost:9229/cdp</b>`)
 	case u.Path == "/json":
 		// https://chromedevtools.github.io/devtools-protocol/#get-json-or-jsonlist
 		s.metadata(w, r)
-	case u.Path == "/cdp":
+	case u.Path == "/" && hasHeader(r, "Connection", "Upgrade") && hasHeader(r, "Upgrade", "Websocket"):
 		// The endpoint, DevTools connects to to listen for the CDP events
 		// It's a bidirectional Websocket connection,
 		// which translates events from `eventReader` to CDP protocol
+
+		/*
+		 GET / HTTP/1.1
+		 Host: localhost:9229
+		 Accept-Encoding: gzip, deflate, br
+		 Accept-Language: en-US,en;q=0.9
+		 Cache-Control: no-cache
+		 Connection: Upgrade
+		 Cookie: _ga=GA1.1.193655733.1558655142
+		 Origin: chrome://devtools
+		 Pragma: no-cache
+		 Sec-Websocket-Extensions: permessage-deflate; client_max_window_bits
+		 Sec-Websocket-Key: aaaaaB1q9FnARRKcArMLYQ==
+		 Sec-Websocket-Version: 13
+		 Upgrade: websocket
+		 User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.61 Safari/537.36
+		*/
 		conn, err := wsUpgrader.Upgrade(w, r, nil)
 		if err != nil {
 			errr := fmt.Errorf("HTTP: ws.Upgrader: Upgrade: error=%q", err)
@@ -101,7 +116,27 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		if err := s.handleConn(ctx, conn); err != nil {
 			log.Printf("handleConn: error=%q\n", err)
 		}
+	case u.Path == "/":
+		w.Header().Set("Content-Type", "text/html")
+		fmt.Fprintf(w, `
+			<br/> 1. copy below link and 
+			<br/> 2. paste it into chrome's addressbar input
+			<br/> 3. observe the DevTools UI
+			<br/> 4. it's not a "normal" hyperlink so can't be clicked on
+			<br/><br/>
+			<b> chrome://devtools/bundled/inspector.html?ws=%s</b>`,
+			s.HostPort,
+		)
 	}
+}
+func hasHeader(r *http.Request, key, value string) bool {
+	for _, v := range r.Header[textproto.CanonicalMIMEHeaderKey(key)] {
+		if strings.EqualFold(v, value) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (s *Server) handleConn(ctx context.Context, conn *websocket.Conn) error {
